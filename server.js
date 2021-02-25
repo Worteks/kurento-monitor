@@ -45,6 +45,23 @@ const pipelines_only = config.get('pipelines_only');
 process.env.NODE_TLS_REJECT_UNAUTHORIZED =
   config.get('kurento.reject_self_signed');
 
+const promclient = require('prom-client');
+
+var pipelinesGauge = null;
+var upGauge = null;
+if (config.get('prometheus_port') > 0) {
+  const http = require('http');
+  const httpServer = http.createServer((request, response) => {
+    response.setHeader('Content-Type', 'text/plain');
+    response.end(promclient.Registry.metrics());
+  });
+  pipelinesGauge = new promclient.Gauge({ name: 'kurento_pipelines_active', help: 'Kurento Piplines Count' });
+  upGauge = new promclient.Gauge({ name: 'kurento_up', help: 'Is Kurento Running' });
+  httpServer.listen(config.get('prometheus_port'), '0.0.0.0', () => {
+    output(`Server listening on ${config.get('prometheus_port')}`);
+  });
+}
+
 var kurentoClient = null;
 
 function getKurentoClient(callback) {
@@ -102,7 +119,12 @@ function output(data) {
 
 function getInfo(server, callback) {
   if (!server) {
+    if (upGauge !== null) {
+      upGauge.set(0);
+    }
     return callback('error - failed to find server');
+  } else if (upGauge !== null) {
+    upGauge.set(1);
   }
 
   server.getInfo(function(error,serverInfo) {
@@ -116,12 +138,18 @@ function getInfo(server, callback) {
       }
 
       var pipelinesNumber = Object.keys(pipelinesInfo).length;
+      if (pipelinesGauge !== null) {
+	pipelinesGauge.set(pipelinesNumber);
+      }
       if (pipelines_only) {
         return callback(pipelinesNumber);
       } else {
         //add pipeline info to server info
         serverInfo.pipelinesNumber = pipelinesNumber;
         serverInfo.pipelines = pipelinesInfo;
+	//if (versionText !== null) {
+	//  versionText.set(serverInfo.version);
+	//}
         return callback(JSON.stringify(serverInfo,null,spacesNum));
       }
     });
@@ -130,7 +158,12 @@ function getInfo(server, callback) {
 
 function getGraph(server, callback){
   if (!server) {
+    if (upGauge !== null) {
+      upGauge.set(0);
+    }
     return callback('error - failed to find server');
+  } else if (upGauge !== null) {
+    upGauge.set(1);
   }
 
   server.getPipelines(function (error, pipelines) {
@@ -138,17 +171,22 @@ function getGraph(server, callback){
       return callback('error - failed to get pipelines');
     }
 
-    var pipeline = pipelines[0];
-    pipeline.getGstreamerDot('SHOW_CAPS_DETAILS', function(error, dotGraph) {
-      if (error) {
-        return callback('error - failed to get graph');
-      }
-      return callback(dotGraph);
-    });
+    if (pipelinesGauge !== null) {
+      pipelinesGauge.set(pipelines.length);
+    }
+    if (pipelines.length > 0) {
+      var pipeline = pipelines[0];
+      pipeline.getGstreamerDot('SHOW_CAPS_DETAILS', function(error, dotGraph) {
+        if (error) {
+          return callback('error - failed to get graph');
+        }
+        return callback(dotGraph);
+      });
+    } else { return callback('no pipelines'); }
   });
 }
 
-function exit (code) {
+function exit(code) {
   process.exit(code);
 }
 
@@ -168,7 +206,7 @@ function getFileWriter() {
       dateFormat + '.out');
 }
 
-function stop (error) {
+function stop(error) {
   if (kurentoClient) {
     kurentoClient.close();
   }

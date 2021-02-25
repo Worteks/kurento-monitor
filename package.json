@@ -2,9 +2,13 @@
   "name": "kurento-monitor",
   "version": "0.0.1",
   "private": true,
+  "scripts": {
+    "post-install": "find node_modules/prom-client/ -type f | while read line; do sed -i \"s|} catch {|} catch(nvm) {|\" \"$line\"; done"
+  },
   "dependencies": {
     "config": "^1.21.0",
+    "console-stamp": "0.2.5",
     "kurento-client": "6.2.0",
-    "console-stamp": "0.2.5"
+    "prom-client": "^13.1.0"
   }
 }
