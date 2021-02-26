@@ -45,20 +45,36 @@ const pipelines_only = config.get('pipelines_only');
 process.env.NODE_TLS_REJECT_UNAUTHORIZED =
   config.get('kurento.reject_self_signed');
 
-const promclient = require('prom-client');
+const prom = require('prom-client');
+
+async function getStats() {
+    let buf = await prom.register.metrics();
+    return buf;
+}
 
 var pipelinesGauge = null;
 var upGauge = null;
 if (config.get('prometheus_port') > 0) {
   const http = require('http');
   const httpServer = http.createServer((request, response) => {
-    response.setHeader('Content-Type', 'text/plain');
-    response.end(promclient.Registry.metrics());
+    getStats()
+      .then((stats) => {
+          response.setHeader('Content-Type', 'text/plain');
+          response.end(stats);
+        })
+      .catch((e) => {
+          response.end('error');
+          console.log(e);
+        });
   });
-  pipelinesGauge = new promclient.Gauge({ name: 'kurento_pipelines_active', help: 'Kurento Piplines Count' });
-  upGauge = new promclient.Gauge({ name: 'kurento_up', help: 'Is Kurento Running' });
+  pipelinesGauge = new prom.Gauge({ name: 'kurento_pipelines_active', help: 'Kurento Piplines Count' });
+  upGauge = new prom.Gauge({ name: 'kurento_up', help: 'Is Kurento Running' });
   httpServer.listen(config.get('prometheus_port'), '0.0.0.0', () => {
-    output(`Server listening on ${config.get('prometheus_port')}`);
+    let b = `Server listening on ${config.get('prometheus_port')}`);
+    console.log(b);
+    if (file_output && logger) {
+      logger.log(b);
+    }
   });
 }
 
@@ -111,9 +127,11 @@ function getPipelinesInfo(server, callback) {
 }
 
 function output(data) {
-  console.log(data);
-  if (file_output && logger) {
-    logger.log(data);
+  if (upGauge === null) {
+    console.log(data);
+    if (file_output && logger) {
+      logger.log(data);
+    }
   }
 }
 
