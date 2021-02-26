@@ -70,7 +70,7 @@ if (config.get('prometheus_port') > 0) {
   pipelinesGauge = new prom.Gauge({ name: 'kurento_pipelines_active', help: 'Kurento Piplines Count' });
   upGauge = new prom.Gauge({ name: 'kurento_up', help: 'Is Kurento Running' });
   httpServer.listen(config.get('prometheus_port'), '0.0.0.0', () => {
-    let b = `Server listening on ${config.get('prometheus_port')}`);
+    let b = `Server listening on ${config.get('prometheus_port')}`;
     console.log(b);
     if (file_output && logger) {
       logger.log(b);
