@@ -54,9 +54,15 @@ async function getStats() {
 
 var pipelinesGauge = null;
 var upGauge = null;
+var lastChecked = null;
 if (config.get('prometheus_port') > 0) {
   const http = require('http');
+  lastChecked = new prom.Gauge({ name: 'kurento_last_scrape', help: 'Last time Kurento Exporter Replied - timestamp, in ms' });
+  pipelinesGauge = new prom.Gauge({ name: 'kurento_pipelines_active', help: 'Kurento Piplines Count' });
+  upGauge = new prom.Gauge({ name: 'kurento_up', help: 'Is Kurento Running' });
+
   const httpServer = http.createServer((request, response) => {
+    lastChecked.set(Date.now());
     getStats()
       .then((stats) => {
           response.setHeader('Content-Type', 'text/plain');
@@ -67,8 +73,7 @@ if (config.get('prometheus_port') > 0) {
           console.log(e);
         });
   });
-  pipelinesGauge = new prom.Gauge({ name: 'kurento_pipelines_active', help: 'Kurento Piplines Count' });
-  upGauge = new prom.Gauge({ name: 'kurento_up', help: 'Is Kurento Running' });
+
   httpServer.listen(config.get('prometheus_port'), '0.0.0.0', () => {
     let b = `Server listening on ${config.get('prometheus_port')}`;
     console.log(b);
